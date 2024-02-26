@@ -14,6 +14,7 @@ int search_and_exe_commd(char *args[])
 char *path = getenv("PATH");
 
 size_t our_strlen(const char *src)
-
+void sign_handler(int sign)
+void builtin_cd(char *args)
 
 #endif /* MAIN_H */
