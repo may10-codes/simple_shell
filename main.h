@@ -5,16 +5,19 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
-#define MAX_ARGS 10
 
-int search_and_exe_commd(char *args[])
-char *path = getenv("PATH");
+char *get_path(char *command);
+extern char **environ;
 
-size_t our_strlen(const char *src)
-void sign_handler(int sign)
-void builtin_cd(char *args)
+/* For builtin*/
+void builtin_cd(char *args);
+void builtin_exit(void);
+void err_msg(char *command);
 
-#endif /* MAIN_H */
+void signal_handler(int signal);
+
+#endif 
+

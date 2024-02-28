@@ -1,99 +1,134 @@
 #include "main.h"
 
-
-/**
- * main - Main entry point for the program
- *
- * Return: Always returns 0 indicating success
- */
-
-
+void process_input(void);
 
 int main(void)
 {
-    char *buff = NULL; /* Buffer for user input */
-    size_t count = 0; /* Size of the buffer */
-    ssize_t tread; /* Number of characters read */
+    /* Declare variables*/
+    char *user_input = NULL;
+    size_t input_length = 0;
+    int chars_read;
+
+    /* String tokenization*/
+    char *separators = " \n\r\t\a"; /* Set an empty string as a separator*/
+    char *token;
+    char *arguments[1024];
+    int process_id;
+
+    /*To handle signals */
+    signal(SIGINT, signal_handler);
 
     while (1)
     {
-        write(STDOUT_FILENO, "magic_simpleshell# ", 18); /* Print shell prompt */
-        tread = getline(&buff, &count, stdin); /* Read user input */
-        if (tread == -1)
-        {
-            perror("Exiting shell");
-            free(buff); /* Free allocated memory */
-            exit(EXIT_FAILURE); /* Exit the shell on failure */
-        }
-        else if (tread == 0)
-        {
-            printf("End of file reached. Exiting shell.\n");
-            free(buff); /* Free allocated memory */
-            exit(EXIT_SUCCESS); /* Exit the shell on EOF */
-        }
-        else
-        {
-            buff[strcspn(buff, "\n")] = '\0'; /* Remove newline character from input */
-        }
+        /* Prompt*/
+        write(1, "Shell$ ", 7);
 
-        /* Tokenize the input to separate command and arguments */
-        char *token;
-        token = strtok(buff, " ");
-        if (token != NULL)
-        {
-            char *args[MAX_ARGS + 1]; /* Maximum of MAX_ARGS arguments + NULL */
-            int i = 0;
-            args[i++] = token;
+        /* Getting users input*/
+        chars_read = getline(&user_input, &input_length, stdin);
 
-            while ((token = strtok(NULL, " ")) != NULL && i < MAX_ARGS)
+        if (chars_read == -1)
+        {
+            /* When the user presses CTRL + D*/
+            if (feof(stdin))
             {
-                args[i++] = token;
+                builtin_exit();
             }
-            args[i] = NULL; /* Null-terminate the argument list */
-
-            /* Execute the command with arguments */
-            if (find_and_execute_command(args) == -1)
+            else
             {
-                printf("Command not found: %s\n", args[0]);
+                perror("Error reading input\n");
+                return(-1);
             }
         }
+        else if (chars_read == 1)
+        {
+            continue;
+        }
+        else 
+        {
+            int idx = 0;
 
-        free(buff); /* Free allocated memory */
-        buff = NULL; /* Reset buffer pointer */
+            /* Process the input using string tokenization*/
+            token = strtok(user_input, separators);
+
+            /* We use a null terminating tokenization*/
+            while(token != NULL)
+            {
+                arguments[idx] = token;
+                token = strtok(NULL, separators);
+                idx++;
+            }
+            arguments[idx] = NULL;
+
+            /**
+             * Here we can check if the token is a built-in command like (i.e, cd, exit)
+             * And handle it separately  
+             */
+
+            if (strcmp(arguments[0], "cd") == 0)
+            {
+                /* Call for our function*/
+                builtin_cd(arguments[1]);
+            }
+            else if(strcmp(arguments[0], "exit")== 0)
+            {
+                /* We want to exit*/
+                builtin_exit();
+            }
+            else
+            {
+                process_id = fork();
+
+                if (process_id == -1) /* Changed from 1 to -1*/
+                {
+                    perror("Fork failed");
+                    free(user_input);
+                    return(-1);
+                }
+                else if (process_id == 0)
+                {
+                    /*pid_t pid;*/
+                    char *cmd_path = get_path(arguments[0]);
+                    if (cmd_path != NULL) 
+                    {
+
+                        /* If it is not a built in command, we execute it*/
+
+                        /* This is the child process*/
+
+
+                        /* We execute the command with execve*/
+                        execve(cmd_path, arguments, environ);
+
+                        /* Check if evecve fails*/
+                        err_msg(arguments[0]);
+                        free(user_input); /* Free allocated memory */
+                        exit(1);
+                    }
+
+                }
+                else
+                {
+                    /* This is the parent process*/
+
+                    int status;
+                    waitpid(process_id, &status, 0);
+
+                    if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+                    {
+                        printf("\nChild process %d exited with non-zero status %d\n", process_id, WEXITSTATUS(status));
+                    }
+                }
+            }
+        }/* loop ends end*/
+
     }
-
-    return 0;
-}
-
-
-
-/**
- * search_and_exe_commd - Finds and executes a command
- * @args: Array of command arguments
- *
- * Return: 0 on success, -1 on failure
- */
-
-
-int search_and_exe_commd(char *args[])
-{
-    char *path = getenv("PATH");
-    if (path == NULL)
+    free(user_input); /* Free allocated memory */
+    printf("Is a TTY: %d\n", isatty(STDIN_FILENO));
+    if (isatty(STDIN_FILENO) == 1)
     {
-        perror("Unable to get PATH");
-        return -1;
+        printf("Inside isatty condition\n");
+        write(1, "\n", 1);
     }
-    
-
-    /* Adds  command execution logic here */
-
-if (execvp(args[0], args) == -1)
-    {
-        perror("Command execution failed");
-        return -1;
-    }
-
-
-    return 0;
+    return(0);
 }
 
