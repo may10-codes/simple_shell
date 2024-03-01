@@ -1,18 +1,16 @@
 #include "main.h"
 
-/* this is to print the erro message*/
-void err_msg(char *command)
+/**
+ * print_hsh_error - Print error message with ./hsh prefix.
+ * @message: The error message to display.
+ *@shell_name: shell name
+ */
+void print_hsh_error(const char *message, const char *shell_name)
 {
-    char *err_msg;
-    char *err_msg2;
-    
-    /* Display the error message*/
-    /* If the command wasn't found*/
-    err_msg = "Command '";
-    write(STDERR_FILENO, err_msg, strlen(err_msg));
-    write(STDERR_FILENO, command, strlen(command));
-    err_msg2 = "' not found\n";
-    write(STDERR_FILENO, err_msg2, strlen(err_msg2));
-    exit(EXIT_FAILURE); /*This goes back to the execve*/
+	char error_statement[100];
 
+	our_strcpy(error_statement, shell_name);
+	our_strcat(error_statement, ": ");
+	our_strcat(error_statement, message);
+	write(STDERR_FILENO, error_statement, our_strlen(error_statement));
 }

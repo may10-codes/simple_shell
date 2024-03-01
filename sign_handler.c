@@ -1,34 +1,55 @@
 #include "main.h"
-#include <stdio.h>
 
 /**
- * our_strlen - calculates the length of a string
- * @src: the string whose length is to be calculated
+ * sigint_handler - handles SIGINT signal
+ * @sig: the exact signal number (unused)
  *
- * Return: the length of the string
+ * Description: Handles the SIGINT signal (Ctrl+C) by freeing global_buffer
+ *              if it's not NULL, printing a newline character, and exiting
+ *              with status 130.
  */
-size_t our_strlen(const char *src)
+void sigint_handler(int sig)
 {
-        size_t len = 0;
+	char *global_buffer = NULL;
 
-        while (src[len])
-                len++;
-        return (len);
+	(void)sig; /* Unused parameter */
+
+	/* Free global_buffer if not NULL */
+	if (global_buffer != NULL)
+	{
+		free(global_buffer);
+		global_buffer = NULL;
+	}
+
+	/* Print newline character */
+	our_putchar('\n');
+
+	/* Exit with status 130 */
+	exit(130);
 }
 
 /**
- * signal_handler - handles signals, specifically for CTRL+C
- * @sign: signal number
+ * flush_buffer - checks whether buffer contains spaces or is empty
  *
- * This function is invoked when a signal is caught, such as CTRL+C.
- * It writes a prompt to stdout and flushes it.
+ * Return: 0 if buffer contains non-space characters, 1 if buffer is empty
  */
-void signal_handler(int sign)
+int flush_buffer(void)
 {
-        char *prompt = "\n$ ";
+	char *global_buffer = NULL;
+	int i = 0;
 
-        (void)sign; /* Ignoring the signal argument */
-        write(1, prompt, our_strlen(prompt)); /* Writing prompt to stdout */
-        fflush(stdout); /* Flushing stdout */
+	/* Iterate through global_buffer */
+	for (; global_buffer[i]; i++)
+	{
+		/* If non-space character is found, return 0 */
+		if (global_buffer[i] != ' ')
+			return (0);
+	}
+
+	/* Free global_buffer */
+	free(global_buffer);
+
+	/* Return 1 if buffer is empty */
+	return (1);
 }
 

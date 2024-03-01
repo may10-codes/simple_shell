@@ -1,134 +1,146 @@
 #include "main.h"
 
-void process_input(void);
-
-int main(void)
+/**
+ * display_prompt - Functions to allow user to see prompt
+ */
+void display_prompt(void)
 {
-    /* Declare variables*/
-    char *user_input = NULL;
-    size_t input_length = 0;
-    int chars_read;
+	write(STDOUT_FILENO, "#cisfun$", 8);
+}
 
-    /* String tokenization*/
-    char *separators = " \n\r\t\a"; /* Set an empty string as a separator*/
-    char *token;
-    char *arguments[1024];
-    int process_id;
+#include "main.h"
 
-    /*To handle signals */
-    signal(SIGINT, signal_handler);
+/**
+ * execute_input - Functions to execute commands.
+ * @input: The command to be executed.
+ *
+ * Return: The result after execution of the command.
+ */
+void execute_input(char *input)
+{
+	int argc = 0;
+	char *argv[MAX_ARGS + 1];
+	char *token = strtok(input, " \t\n");
 
-    while (1)
-    {
-        /* Prompt*/
-        write(1, "Shell$ ", 7);
+	while (token != NULL && argc < MAX_ARGS)
+	{
+		argv[argc] = token;
+		argc++;
+		token = strtok(NULL, " \t\n");
+	}
+	argv[argc] = NULL;
 
-        /* Getting users input*/
-        chars_read = getline(&user_input, &input_length, stdin);
+	if (argc == 0)
+	{
+		return;
+	}
+	else
+	{
+		execute_command_or_process(argc, argv);
+	}
+}
 
-        if (chars_read == -1)
-        {
-            /* When the user presses CTRL + D*/
-            if (feof(stdin))
-            {
-                builtin_exit();
-            }
-            else
-            {
-                perror("Error reading input\n");
-                return(-1);
-            }
-        }
-        else if (chars_read == 1)
-        {
-            continue;
-        }
-        else 
-        {
-            int idx = 0;
+/**
+ * execute_command_or_process - Execute the appropriate command or process.
+ * @argc: Number of arguments in the command.
+ * @argv: Array of arguments in the command.
+ */
+void execute_command_or_process(int argc, char *argv[])
+{
+	if (our_strcmp(argv[0], "exit") == 0)
+	{
+		if (argc > 1)
+		{
+			int exit_shell = our_atoi(argv[1]);
+			exit(exit_shell);
+		}
+		else
+		{
+			exit(EXIT_SUCCESS);
+		}
+	}
+	else if (our_strcmp(argv[0], "env") == 0)
+	{
+		our_env();
+	}
+	else
+	{
+		handle_other_commands(argc, argv);
+	}
+}
 
-            /* Process the input using string tokenization*/
-            token = strtok(user_input, separators);
+/**
+ * handle_other_commands - Handle non-built-in commands using PATH.
+ * @argc: Number of arguments in the command.
+ * @argv: Array of arguments in the command.
+ */
+void handle_other_commands(int argc __attribute__((unused)), char *argv[])
+{
+	pid_t pid;
+	int path_result = path(&argv[0]);
 
-            /* We use a null terminating tokenization*/
-            while(token != NULL)
-            {
-                arguments[idx] = token;
-                token = strtok(NULL, separators);
-                idx++;
-            }
-            arguments[idx] = NULL;
+	if (path_result == 0)
+	{
+		handle_error("command not found", argv[0]);
+	}
+	else if (path_result == -1)
+	{
+		handle_error("permission denied", argv[0]);
+	}
+	else
+	{
+		pid = fork();
+		if (pid < 0)
+		{
+			perror("fork failed");
+			exit(EXIT_FAILURE);
+		}
+		else if (pid == 0)
+		{
+			execute_command(argv[0], argv);
+			exit(EXIT_SUCCESS);
+		}
+		else
+		{
+			wait(NULL);
+		}
+	}
+}
 
-            /**
-             * Here we can check if the token is a built-in command like (i.e, cd, exit)
-             * And handle it separately  
-             */
+/**
+ * read_execute_loop - read a line from the standard input
+ * Return: pointer that points to a str with the line content
+ */
+void read_execute_loop(void)
+{
+	char input[MAX_INPUT];
+	int read_status;
 
-            if (strcmp(arguments[0], "cd") == 0)
-            {
-                /* Call for our function*/
-                builtin_cd(arguments[1]);
-            }
-            else if(strcmp(arguments[0], "exit")== 0)
-            {
-                /* We want to exit*/
-                builtin_exit();
-            }
-            else
-            {
-                process_id = fork();
+	while (1)
+	{
+		if (isatty(STDIN_FILENO))
+			display_prompt();
+		read_status = read(STDIN_FILENO, input, MAX_INPUT);
+		if (read_status == -1)
+		{
+			perror("read");
+			exit(EXIT_FAILURE);
+		}
 
-                if (process_id == -1) /* Changed from 1 to -1*/
-                {
-                    perror("Fork failed");
-                    free(user_input);
-                    return(-1);
-                }
-                else if (process_id == 0)
-                {
-                    /*pid_t pid;*/
-                    char *cmd_path = get_path(arguments[0]);
-                    if (cmd_path != NULL) 
-                    {
+		if (read_status == 0)
+		{
+			exit(EXIT_SUCCESS);
+		}
 
-                        /* If it is not a built in command, we execute it*/
+		if (input[read_status - 1] == '\n')
+			input[read_status - 1] = '\0';
 
-                        /* This is the child process*/
-
-
-                        /* We execute the command with execve*/
-                        execve(cmd_path, arguments, environ);
-
-                        /* Check if evecve fails*/
-                        err_msg(arguments[0]);
-                        free(user_input); /* Free allocated memory */
-                        exit(1);
-                    }
-
-                }
-                else
-                {
-                    /* This is the parent process*/
-
-                    int status;
-                    waitpid(process_id, &status, 0);
-
-                    if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-                    {
-                        printf("\nChild process %d exited with non-zero status %d\n", process_id, WEXITSTATUS(status));
-                    }
-                }
-            }
-        }/* loop ends end*/
-
-    }
-    free(user_input); /* Free allocated memory */
-    printf("Is a TTY: %d\n", isatty(STDIN_FILENO));
-    if (isatty(STDIN_FILENO) == 1)
-    {
-        printf("Inside isatty condition\n");
-        write(1, "\n", 1);
-    }
-    return(0);
+		get_comments(input);
+		if (our_strcmp(input, "") == 0)
+		{
+			continue;
+		}
+		execute_input(input);
+	}
 }
 
